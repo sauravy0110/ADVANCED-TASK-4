@@ -1,0 +1,102 @@
+import pulp
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Problem setup: A manufacturer wants to decide how many units of Product A and Product B to produce
+# to maximize profit, given constraints on labor hours and raw material availability.
+
+# Define the problem
+problem = pulp.LpProblem("Maximize_Profit", pulp.LpMaximize)
+
+# Decision variables
+product_A = pulp.LpVariable("Product_A", lowBound=0, cat='Continuous')
+product_B = pulp.LpVariable("Product_B", lowBound=0, cat='Continuous')
+
+# Objective function: Maximize profit
+# Profit: $40 per unit of Product A, $30 per unit of Product B
+problem += 40 * product_A + 30 * product_B, "Total_Profit"
+
+# Constraints
+# Labor: 2 hours for Product A, 1 hour for Product B, 100 hours available
+problem += 2 * product_A + 1 * product_B <= 100, "Labor_Hours"
+
+# Raw material: 3 units for Product A, 4 units for Product B, 120 units available
+problem += 3 * product_A + 4 * product_B <= 120, "Raw_Materials"
+
+# Solve the problem
+status = problem.solve()
+
+# Extract results
+results = {
+    "Variable": [v.name for v in problem.variables()],
+    "Value": [v.varValue for v in problem.variables()],
+}
+results_df = pd.DataFrame(results)
+
+# Display results
+objective_value = pulp.value(problem.objective)
+
+print("Problem Status:", pulp.LpStatus[status])
+print("\nOptimal Solution:")
+print(results_df)
+print(f"\nTotal Profit: ${objective_value}")
+
+# Insights
+# The solution suggests the optimal number of Product A and Product B to produce within the given constraints.
+# Analyze resource utilization to determine if increasing availability of labor or material s could enhance profitability.
+
+# Correct Resource Utilization
+constraints_usage = {
+    "Constraint": [name for name in problem.constraints.keys()],
+    "Usage": [
+        sum(coef * v.varValue for v, coef in problem.constraints[name].items())
+        for name in problem.constraints.keys()
+    ],
+    "Right_Hand_Side": [problem.constraints[name].constant for name in problem.constraints.keys()],
+}
+constraints_df = pd.DataFrame(constraints_usage)
+
+print("\nResource Utilization:")
+print(constraints_df)
+
+# Sensitivity Analysis
+print("\nSensitivity Analysis:")
+for constraint in problem.constraints.keys():
+    shadow_price = problem.constraints[constraint].pi
+    slack = problem.constraints[constraint].slack
+    print(f"Constraint: {constraint}, Shadow Price: {shadow_price}, Slack: {slack}")
+
+# Reporting
+results_df.to_csv("optimal_solution.csv", index=False)
+constraints_df.to_csv("resource_utilization.csv", index=False)
+print("\nReports have been saved as CSV files.")
+
+# Visualization
+# Plot the feasible region and optimal solution
+import numpy as np
+
+# Define constraint lines
+x = np.linspace(0, 50, 400)
+y1 = (100 - 2 * x) / 1  # Labor constraint
+y2 = (120 - 3 * x) / 4  # Raw material constraint
+
+# Feasible region
+plt.figure(figsize=(10, 6))
+plt.plot(x, y1, label="Labor Constraint")
+plt.plot(x, y2, label="Raw Material Constraint")
+plt.fill_between(x, np.minimum(y1, y2), color="gray", alpha=0.3, label="Feasible Region")
+
+# Optimal solution
+optimal_A = product_A.varValue
+optimal_B = product_B.varValue
+plt.scatter(optimal_A, optimal_B, color="red", zorder=5, label="Optimal Solution")
+
+# Labels and legend
+plt.xlabel("Product A")
+plt.ylabel("Product B")
+plt.title("Feasible Region and Optimal Solution")
+plt.axhline(0, color="black",linewidth=0.5)
+plt.axvline(0, color="black",linewidth=0.5)
+plt.grid(color = 'gray', linestyle = '--', linewidth = 0.5)
+plt.legend()
+plt.show()
